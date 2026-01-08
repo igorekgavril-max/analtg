@@ -1,0 +1,5 @@
+nicegui
+python-dotenv
+telethon
+pandas
+matplotlib
