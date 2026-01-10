@@ -67,7 +67,7 @@ def format_top_posts(posts, channel='', mode='er'):
         # Обрабатываем текст поста
         post_title = p.get('title', '')
         if post_title == "(без текста)" or not post_title:
-            text_preview = "Пост не содержит текст. Вероятно медиа-контент"
+            text_preview = "Пост без текста..."
         else:
             text_preview = (post_title[:35] + '…') if len(post_title) > 35 else post_title
         
@@ -99,9 +99,9 @@ def format_top_posts(posts, channel='', mode='er'):
             display:grid;
             grid-template-columns:
                 40px
-                minmax(100px, 1fr)
+                minmax(130px, 1fr)
                 200px
-                140px
+                200px
                 40px;
             gap:16px;
             align-items:center;
@@ -148,6 +148,7 @@ def format_top_posts(posts, channel='', mode='er'):
 # Глобальные переменные для хранения компонентов
 _metric_buttons = {}
 _top_posts_container = None
+_css_styles_added = False
 
 
 def update_top_posts(mode: str):
@@ -168,7 +169,8 @@ def update_top_posts(mode: str):
     start_date = STATE.last_fetch_params.get("start_date", "")
     end_date = STATE.last_fetch_params.get("end_date", "")
     if not start_date or not end_date:
-        _top_posts_container.content = "<div style='color:#6b7280; padding: 20px; text-align: center;'>Период не выбран</div>"
+        if _top_posts_container:
+            _top_posts_container.content = "<div style='color:#6b7280; padding: 20px; text-align: center;'>Период не выбран</div>"
         return
     
     try:
@@ -193,14 +195,19 @@ def update_top_posts(mode: str):
         
         # Обновляем HTML с топ-постами
         html = format_top_posts(selected_posts, STATE.last_channel, mode)
-        _top_posts_container.content = html
+        if _top_posts_container:
+            _top_posts_container.content = html
         
-        # Обновляем стили кнопок
+        # Обновляем стили кнопок по аналогии с блоком "Саммари за период"
+        # Активная кнопка - зеленый градиент (как карточка "Средний ER")
+        # Неактивные кнопки - белый фон с серой обводкой (как остальные карточки)
         for m, btn in _metric_buttons.items():
             if m == mode:
-                btn.style('background: #111827; color: #fff; border-color: #111827;')
+                # Активная кнопка: зеленый градиент, белый текст
+                btn.style('border: 1px solid #059669 !important; border-radius: 8px !important; background: linear-gradient(135deg, #059669 25%, #047857 100%) !important; color: #fff !important; font-size: 14px !important; font-weight: 500 !important; transition: all 0.2s !important; text-transform: none !important; box-shadow: none !important; padding: 8px 16px !important; min-width: fit-content !important;')
             else:
-                btn.style('background: #fff; color: #111827; border: 1px solid #e5e7eb;')
+                # Неактивная кнопка: белый фон, серая обводка, темный текст
+                btn.style('border: 1px solid #e5e7eb !important; border-radius: 8px !important; background: #fff !important; color: #111827 !important; font-size: 14px !important; font-weight: 500 !important; transition: all 0.2s !important; text-transform: none !important; box-shadow: none !important; padding: 8px 16px !important; min-width: fit-content !important;')
     except Exception as e:
         # В случае ошибки показываем сообщение
         if _top_posts_container:
@@ -223,6 +230,46 @@ def render_top_posts():
         ui.label('Топ-5 постов').classes('text-xl font-semibold mb-4').style('color: #111827;')
         ui.label('Выберите метрику для сортировки').classes('text-sm mb-4').style('color: #6b7280;')
         
+        # Добавляем CSS стили для кнопок метрик только один раз
+        global _css_styles_added
+        if not _css_styles_added:
+            ui.add_head_html('''
+        <style>
+            .metric-btn-custom {
+                border: 1px solid #e5e7eb !important;
+                border-radius: 8px !important;
+                background: #fff !important;
+                color: #111827 !important;
+                font-size: 14px !important;
+                font-weight: 500 !important;
+                transition: all 0.2s !important;
+                text-transform: none !important;
+                box-shadow: none !important;
+                padding: 8px 16px !important;
+                min-width: fit-content !important;
+            }
+            .metric-btn-custom.active {
+                border: 1px solid #059669 !important;
+                background: linear-gradient(135deg, #059669 25%, #047857 100%) !important;
+                color: #fff !important;
+            }
+            .metric-btn-custom span,
+            .metric-btn-custom .q-btn__content,
+            .metric-btn-custom .q-btn__content > span {
+                color: inherit !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+                display: inline-block !important;
+            }
+            .metric-btn-custom.active span,
+            .metric-btn-custom.active .q-btn__content,
+            .metric-btn-custom.active .q-btn__content > span {
+                color: #fff !important;
+            }
+        </style>
+        ''')
+            _css_styles_added = True
+        
         # Контейнер для кнопок переключения метрик
         metric_buttons_container = ui.row().classes('w-full gap-2 mb-4').style('flex-wrap: wrap;')
         
@@ -237,22 +284,22 @@ def render_top_posts():
         
         for mode, label in metrics_config:
             with metric_buttons_container:
-                btn = ui.button(label).classes('px-4 py-2').style(
-                    'border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; color: #111827; font-size: 14px; font-weight: 500;'
-                )
+                # Используем ui.button - он автоматически отобразит label как текст
+                btn = ui.button(label).classes('metric-btn-custom')
                 if mode == 'er':
-                    btn.style('background: #111827; color: #fff; border-color: #111827;')
+                    # По умолчанию ER активна - применяем стили активной кнопки сразу
+                    btn.style('border: 1px solid #059669 !important; background: linear-gradient(135deg, #059669 25%, #047857 100%) !important; color: #fff !important;')
                 _metric_buttons[mode] = btn
         
         # Контейнер для топ-постов - инициализируем с пустым содержимым
         _top_posts_container = ui.html('', sanitize=False).classes('w-full')
-    
-    # Привязываем обработчики к кнопкам
-    def make_handler(m):
-        return lambda: update_top_posts(m)
-    
-    for mode, btn in _metric_buttons.items():
-        btn.on('click', make_handler(mode))
+        
+        # Привязываем обработчики кликов к кнопкам ВНУТРИ контекста карточки
+        # Используем lambda с дефолтным аргументом для правильного захвата значения
+        for mode_key, btn in list(_metric_buttons.items()):
+            # Используем lambda с дефолтным аргументом mode=mode_key для правильного захвата
+            # Это гарантирует, что каждая lambda функция захватывает правильное значение
+            btn.on('click', lambda mode=mode_key: update_top_posts(mode))
     
     return top_posts_card
 
